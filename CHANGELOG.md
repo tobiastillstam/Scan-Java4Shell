@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-11-18
+
+### Fixed
+- GraalVM Enterprise 21.3 runtimes on a Java 8, 11 or pre-17.0.6 base were
+  reported `UNAFFECTED` before the GraalVM check ran. `GRAALVM_VERSION`
+  21.3.x is now classified first, for any base JDK (ARM64 stays
+  `UNAFFECTED`).
+
+### Changed
+- Runtime CSV and `-PassThru` output are sorted for triage: status, then
+  `CpuAvx512Vbmi` (Yes, Possible, Unknown, No), then unmitigated runtimes
+  first. Status rules are unchanged.
+- Fixed builds cross-checked against Rapid7 and the Canadian Centre for
+  Cyber Security (AL26-029); the tables are unchanged.
+
 ## [1.0.0] - 2026-11-18
 
 ### Added

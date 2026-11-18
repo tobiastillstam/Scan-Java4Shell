@@ -112,13 +112,17 @@
     GitHub        : https://github.com/tobiastillstam
     Company       : Tillnet
     License       : MIT
-    Version       : 1.0.0
+    Version       : 1.1.0
     Date Created  : 2026-11-18
     Last Modified : 2026-11-18
 
     Change Log
     ----------
     1.0.0 (2026-11-18) - Initial release.
+    1.1.0 (2026-11-18) - GraalVM Enterprise 21.3 is classified before the
+                         Java feature-version gates (a Java 8/11/17 base
+                         no longer hides it). Runtime CSV sorted by status,
+                         CPU exposure and missing mitigation.
 
     Operational notes:
     - Fixed builds known on 2026-11-18 (see $FixedOracle, $FixedCorretto,
@@ -126,11 +130,15 @@
       21.0.13.1, 25.0.5.1, 27.0.1.1; Oracle 8 Performance Pack 8u513-perf;
       Amazon Corretto 17.0.21.1.2, 21.0.13.1.2, 25.0.5.1.2, 27.0.1.1.4;
       Azul Zulu 17.70.201, 21.54.201, 25.38.201, 27.30.201; GraalVM
-      Enterprise 21.3.20.1. Any other vendor counts as fixed once its
+      Enterprise 21.3.20.1 (any base JDK; the advisory names none). Any other vendor counts as fixed once its
       JAVA_VERSION reaches the Oracle fixed version for the line. Eclipse
       Temurin, Microsoft, Red Hat, BellSoft Liberica and SapMachine had no
       confirmed fixed build: their runtimes in affected lines are NEEDS
       PATCH until that changes. Update the tables when vendors ship.
+    - Runtime CSV order: status (NEEDS PATCH, WARN, UNAFFECTED), then
+      CpuAvx512Vbmi (Yes, Possible, Unknown, No), then rows without a
+      mitigation flag first. The order is a triage aid only; CPU and
+      mitigation never change the status.
     - Oracle 8 Performance Pack builds are recognised only when 'perf'
       appears in the release file or the jvm.dll version resource.
     - Read-only: nothing is gated by ShouldProcess because nothing on any
@@ -163,8 +171,9 @@
       large file server delays only that target's result.
     - Parameter binding errors (unknown parameter, wrong value type) are
       raised by PowerShell before the script runs and exit with code 1.
-    - Sources: calif.io/java4shell, Tenable and Censys advisories,
-      The Hacker News (2026-11-17/18). The OpenJDK advisory
+    - Sources: calif.io/java4shell, Tenable, Censys and Rapid7 advisories,
+      Canadian Centre for Cyber Security AL26-029, The Hacker News
+      (2026-11-17/18). The OpenJDK advisory
       (openjdk.org/groups/vulnerability/advisories/2026-11-17) is the
       reference for upstream fixed versions.
 #>
@@ -266,6 +275,8 @@ $SystemExcludes = @(
 )
 
 $StatusOrder = @{ 'NEEDS PATCH' = 0; 'WARN' = 1; 'UNAFFECTED' = 2 }
+# Runtime CSV sort rank for CpuAvx512Vbmi (most exposed first); '' sorts as Unknown.
+$CpuOrder    = @{ 'Yes' = 0; 'Possible' = 1; 'Unknown' = 2; '' = 2; 'No' = 3 }
 
 $RuntimeColumns = @(
     'ComputerName', 'Status', 'JavaHome', 'Vendor', 'JavaVersion', 'Feature',
@@ -948,7 +959,22 @@ function Get-RuntimeResult {
     $allText = @($Rec.Implementor, $Rec.JavaVersion, $Rec.RuntimeVersion, $Rec.ImplementorVersion, $Rec.BuildType, $Rec.FileProduct, $Rec.FileVersion) -join ' '
     $patchText = "update to a fixed build; until then consider -XX:-UseBASE64Intrinsics"
 
-    if ($feature -le 8) {
+    # GraalVM EE 21.3 is listed without a base JDK, so it is checked before
+    # the feature-version gates (its base can be Java 8, 11 or 17).
+    $graal = [regex]::Match([string]$Rec.GraalVersion, '^21\.3\.')
+
+    if ($graal.Success -and ($arch -ne 'aarch64')) {
+        if (-not $arch) { $notes.Add('architecture unknown; treated as x86-64') }
+        if (-not $FixedOracle.ContainsKey($feature)) {
+            $notes.Add("GraalVM Enterprise 21.3 on a Java $feature base; the advisory names no base JDK, so it is treated as affected")
+        }
+        $row.FixedIn = "GraalVM Enterprise $FixedGraalEE"
+        if ((Compare-VersionParts (ConvertTo-VersionParts $Rec.GraalVersion) (ConvertTo-VersionParts $FixedGraalEE)) -ge 0) {
+            $row.Status = 'UNAFFECTED'; $row.Action = 'none'
+        }
+        else { $row.Status = 'NEEDS PATCH'; $row.Action = $patchText }
+    }
+    elseif ($feature -le 8) {
         if (($feature -eq 8) -and ($allText -match '(?i)perf')) {
             $row.FixedIn = "8u$FixedJava8PerfUpd-perf (Oracle Performance Pack)"
             if ($parts[2] -ge $FixedJava8PerfUpd) { $row.Status = 'UNAFFECTED'; $row.Action = 'none' }
@@ -986,15 +1012,10 @@ function Get-RuntimeResult {
     }
     else {
         if (-not $arch) { $notes.Add('architecture unknown; treated as x86-64') }
-        $graal    = [regex]::Match([string]$Rec.GraalVersion, '^21\.3\.')
         $corretto = [regex]::Match([string]$Rec.ImplementorVersion, '^(?i)Corretto-(\d+(?:\.\d+)+)')
         $zulu     = [regex]::Match([string]$Rec.ImplementorVersion, '^(?i)Zulu(\d+)\.(\d+)\+(\d+)')
         $fixed = $false
-        if ($graal.Success) {
-            $row.FixedIn = "GraalVM Enterprise $FixedGraalEE"
-            $fixed = (Compare-VersionParts (ConvertTo-VersionParts $Rec.GraalVersion) (ConvertTo-VersionParts $FixedGraalEE)) -ge 0
-        }
-        elseif ($corretto.Success) {
+        if ($corretto.Success) {
             $row.FixedIn = "Corretto $($FixedCorretto[$feature])"
             $fixed = (Compare-VersionParts (ConvertTo-VersionParts $corretto.Groups[1].Value) (ConvertTo-VersionParts $FixedCorretto[$feature])) -ge 0
         }
@@ -1208,6 +1229,16 @@ try {
     if (($notScanned -gt 0) -or ($warn -gt 0) -or ($targets.Count -eq 0)) { $exitCode = 2 }
     elseif ($needsPatch -gt 0) { $exitCode = 1 }
     else { $exitCode = 0 }
+
+    # Runtime report order: status, then CPU exposure, then unmitigated first.
+    # Report only; the status itself never depends on CPU or mitigation.
+    $sorted = @($results | Sort-Object `
+        @{ Expression = { $StatusOrder[$_.Status] } },
+        @{ Expression = { $v = $CpuOrder[[string]$_.CpuAvx512Vbmi]; if ($null -eq $v) { 2 } else { $v } } },
+        @{ Expression = { if ($_.Mitigation) { 1 } else { 0 } } },
+        ComputerName, JavaHome)
+    $results.Clear()
+    foreach ($r in $sorted) { $results.Add($r) }
 
     if ($PassThru) { $results | Select-Object -Property $RuntimeColumns }
 }

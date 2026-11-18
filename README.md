@@ -3,7 +3,7 @@
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B-5391FE)
 ![Platform](https://img.shields.io/badge/Windows%20Server-2016%2B-0078D6)
 ![License](https://img.shields.io/badge/License-MIT-green)
-![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![Version](https://img.shields.io/badge/version-1.1.0-blue)
 
 Finds Java runtimes on the Windows servers in your domain and reports whether
 they are affected by **Java4Shell** (CVE-2026-114938). This is a memory
@@ -62,7 +62,8 @@ fits RMM tools and scheduled tasks.
 | 27 | 27.0.1.1 | 27.0.1.1.4 | 27.30.201 |
 
 - Oracle Java 8 Performance Pack: fixed in `8u513-perf`.
-- GraalVM Enterprise 21.3: fixed in `21.3.20.1`.
+- GraalVM Enterprise 21.3: fixed in `21.3.20.1`. Checked on `GRAALVM_VERSION`
+  for any base JDK (8, 11 or 17), since the advisory names none.
 - **Other vendors** (Eclipse Temurin, Microsoft, Red Hat, BellSoft Liberica,
   SapMachine) had no confirmed fixed build on 2026-11-18. Their runtimes in
   an affected line are reported as `NEEDS PATCH`. A runtime counts as fixed
@@ -132,6 +133,10 @@ so concurrent runs never overwrite each other.
 | `.csv` | One row per runtime: `ComputerName, Status, JavaHome, Vendor, JavaVersion, Feature, Arch, FixedIn, Action, CpuAvx512Vbmi, Mitigation, RunningProcesses, Services, RegisteredAs, FoundBy, Files, Note`. |
 | `-hosts.csv` | One row per target: `Target, ComputerName, ScanStatus (Scanned / Not scanned / Unreachable), OperatingSystem, Runtimes, NeedsPatch, Warn, CpuArch, CpuName, CpuAvx512Vbmi, FoldersScanned, FoldersDenied, Note`. |
 
+The runtime CSV is sorted for triage: `Status` (NEEDS PATCH, WARN,
+UNAFFECTED), then `CpuAvx512Vbmi` (Yes, Possible, Unknown, No), then rows
+without a mitigation flag first. CPU and mitigation never change the status.
+
 Both CSV files are written on every run, header-only when empty, also when
 the script fails. They are UTF-8 with BOM, so non-ASCII paths survive and
 Excel opens them correctly. Console and log output are ASCII.
@@ -198,6 +203,9 @@ advisory mentions them, so test before relying on them:
 - Tenable FAQ: <https://www.tenable.com/blog/java4shell-cve-2026-114938-frequently-asked-questions-about-openjdk-rce-vulnerability>
 - Censys advisory: <https://censys.com/advisory/cve-2026-114938/>
 - The Hacker News: <https://thehackernews.com/2026/11/java4shell-cve-2026-114938-enables-pre.html>
+- Rapid7: <https://www.rapid7.com/blog/post/etr-cve-2026-114938-reported-critical-pre-authentication-remote-code-execution-java-17/>
+- Canadian Centre for Cyber Security AL26-029:
+  <https://www.cyber.gc.ca/en/alerts-advisories/al26-029-critical-vulnerability-impacting-oracle-java-cve-2026-114938>
 - OpenJDK advisory (reference for upstream fixed versions):
   <https://openjdk.org/groups/vulnerability/advisories/2026-11-17>
 

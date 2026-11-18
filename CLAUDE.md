@@ -72,6 +72,9 @@ When a vendor ships a fix:
     command lines).
 - **Classification order**:
   1. No version: WARN.
+  1a. GraalVM EE (`GRAALVM_VERSION` 21.3.x, not aarch64): compared with
+     `$FixedGraalEE` before any feature gate, because the advisory names
+     no base JDK (21.3 ships on 8, 11 and 17).
   2. 8 and older: UNAFFECTED, except the 8 Performance Pack (`perf` in the
      release or resource strings).
   3. 9-16: UNAFFECTED.
@@ -81,9 +84,12 @@ When a vendor ships a fix:
   7. A line outside 17/21/25/27: WARN.
   8. 32-bit x86: WARN.
   9. Otherwise check for a fix, using the first matching vendor rule:
-     GraalVM EE (`GRAALVM_VERSION` 21.3.x), then Corretto, then Zulu, then
-     the generic Oracle version. Not fixed means NEEDS PATCH.
+     Corretto, then Zulu, then the generic Oracle version. Not fixed
+     means NEEDS PATCH.
 - **CPU and mitigation never change the status** (decision: report only).
+  They only order the runtime CSV / `-PassThru` output: status, then
+  `CpuAvx512Vbmi` (Yes, Possible, Unknown/empty, No), then rows without
+  mitigation first, then ComputerName, JavaHome.
   CPU check:
   - ARM64 host: No.
   - .NET 8 `Avx512Vbmi.IsSupported`, when present.
